@@ -29,8 +29,8 @@ def _require_access_token(
     return token
 
 
-def build_input(user_prompt: str, history: Optional[HistoryLike] = None) -> List[Dict[str, Any]]:
-    items: List[Dict[str, Any]] = []
+def build_input(user_prompt: str, history: Optional[HistoryLike] = None) -> List[Dict[str, str]]:
+    items: List[Dict[str, str]] = []
 
     if history:
         for msg in history:
@@ -40,19 +40,9 @@ def build_input(user_prompt: str, history: Optional[HistoryLike] = None) -> List
                 raise ValueError(f"Unsupported history role: {role!r}")
             if not isinstance(content, str):
                 raise ValueError("History message content must be a string")
-            items.append(
-                {
-                    "role": role,
-                    "content": [{"type": "input_text", "text": content}],
-                }
-            )
+            items.append({"role": role, "content": content})
 
-    items.append(
-        {
-            "role": "user",
-            "content": [{"type": "input_text", "text": user_prompt}],
-        }
-    )
+    items.append({"role": "user", "content": user_prompt})
     return items
 
 
