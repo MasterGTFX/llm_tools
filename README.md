@@ -45,8 +45,8 @@ Sync tool-enabled helpers built on the OpenAI Agents SDK:
 - `codex_agent_generate_text(...)`
 - `codex_agent_generate_model(...)`
 
-These can optionally return the final backend response id with:
-- `return_response_id=True`
+These can optionally return replayable multi-turn history with:
+- `return_history=True`
 
 Both modules:
 - work as importable Python modules
@@ -197,7 +197,7 @@ text = codex_agent_generate_text(
 print(text)
 ```
 
-### Agent response ids
+### Agent multi-turn history
 
 ```python
 from agents import function_tool
@@ -207,14 +207,31 @@ from codex_agent import codex_agent_generate_text
 def get_stock_price(ticker: str) -> str:
     return f"{ticker.upper()} is 123.45 USD"
 
-text, response_id = codex_agent_generate_text(
+text, history = codex_agent_generate_text(
     "What is the price of AAPL? Use the tool.",
     tools=[get_stock_price],
-    return_response_id=True,
+    return_history=True,
+)
+
+follow_up, history = codex_agent_generate_text(
+    "And what ticker did you just check?",
+    tools=[get_stock_price],
+    history=history,
+    return_history=True,
 )
 ```
 
-Note: this Codex backend returns a response id, but currently rejects `previous_response_id`, so native multi-turn response chaining is not supported here.
+The returned history is replayable. It includes the items needed for multi-turn continuation on this backend, including user messages, assistant `function_call` items, `function_call_output` items, and assistant message items.
+
+### Response IDs
+
+The Codex backend returns valid `response.id` values, but currently rejects:
+
+```text
+Unsupported parameter: previous_response_id
+```
+
+So native response-id chaining is not useful here. Multi-turn conversations must be implemented by replaying the returned history in the next call.
 
 ## Retry behavior
 
