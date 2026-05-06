@@ -45,6 +45,9 @@ Sync tool-enabled helpers built on the OpenAI Agents SDK:
 - `codex_agent_generate_text(...)`
 - `codex_agent_generate_model(...)`
 
+These can optionally return the final backend response id with:
+- `return_response_id=True`
+
 Both modules:
 - work as importable Python modules
 - support plain text generation
@@ -193,6 +196,25 @@ text = codex_agent_generate_text(
 
 print(text)
 ```
+
+### Agent response ids
+
+```python
+from agents import function_tool
+from codex_agent import codex_agent_generate_text
+
+@function_tool
+def get_stock_price(ticker: str) -> str:
+    return f"{ticker.upper()} is 123.45 USD"
+
+text, response_id = codex_agent_generate_text(
+    "What is the price of AAPL? Use the tool.",
+    tools=[get_stock_price],
+    return_response_id=True,
+)
+```
+
+Note: this Codex backend returns a response id, but currently rejects `previous_response_id`, so native multi-turn response chaining is not supported here.
 
 ## Retry behavior
 

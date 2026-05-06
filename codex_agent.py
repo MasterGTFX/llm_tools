@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence, Type, TypeVar
+from typing import Any, Optional, Sequence, Tuple, Type, TypeVar, Union
 
 from agents import Agent, ModelSettings, OpenAIResponsesModel, Runner, set_default_openai_client
 from openai import AsyncOpenAI
@@ -66,11 +66,12 @@ def codex_agent_generate_text(
     tools: Sequence[Any],
     system_prompt: str = DEFAULT_SYSTEM_PROMPT,
     model: str = DEFAULT_MODEL,
+    return_response_id: bool = False,
     access_token: Optional[str] = None,
     base_url: str = DEFAULT_BASE_URL,
     max_retries: int = DEFAULT_MAX_RETRIES,
     timeout: float = DEFAULT_TIMEOUT,
-) -> str:
+) -> Union[str, Tuple[str, str]]:
     client = _get_client(
         access_token=access_token,
         base_url=base_url,
@@ -84,17 +85,26 @@ def codex_agent_generate_text(
         tools=tools,
     )
 
-    async def _consume() -> str:
+    async def _consume() -> Tuple[str, Optional[str]]:
         result = Runner.run_streamed(agent, user_prompt)
         async for _event in result.stream_events():
             pass
-        return str(result.final_output)
+        response_id = getattr(result, 'last_response_id', None)
+        if not response_id:
+            raw_responses = getattr(result, 'raw_responses', None) or []
+            if raw_responses:
+                response_id = getattr(raw_responses[-1], 'response_id', None)
+        return str(result.final_output), response_id
 
     import asyncio
 
-    output = asyncio.run(_consume())
+    output, response_id = asyncio.run(_consume())
     if not output:
         raise CodexAgentError("Codex agent returned empty text output")
+    if return_response_id:
+        if not response_id:
+            raise CodexAgentError("Codex agent did not expose a response id")
+        return output, response_id
     return output
 
 
@@ -105,11 +115,12 @@ def codex_agent_generate_model(
     tools: Sequence[Any],
     system_prompt: str = DEFAULT_SYSTEM_PROMPT,
     model: str = DEFAULT_MODEL,
+    return_response_id: bool = False,
     access_token: Optional[str] = None,
     base_url: str = DEFAULT_BASE_URL,
     max_retries: int = DEFAULT_MAX_RETRIES,
     timeout: float = DEFAULT_TIMEOUT,
-) -> ModelT:
+) -> Union[ModelT, Tuple[ModelT, str]]:
     client = _get_client(
         access_token=access_token,
         base_url=base_url,
@@ -124,19 +135,28 @@ def codex_agent_generate_model(
         output_type=response_model,
     )
 
-    async def _consume() -> Any:
+    async def _consume() -> Tuple[Any, Optional[str]]:
         result = Runner.run_streamed(agent, user_prompt)
         async for _event in result.stream_events():
             pass
-        return result.final_output
+        response_id = getattr(result, 'last_response_id', None)
+        if not response_id:
+            raw_responses = getattr(result, 'raw_responses', None) or []
+            if raw_responses:
+                response_id = getattr(raw_responses[-1], 'response_id', None)
+        return result.final_output, response_id
 
     import asyncio
 
-    output = asyncio.run(_consume())
+    output, response_id = asyncio.run(_consume())
     if output is None:
         raise CodexAgentError("Codex agent returned empty structured output")
     if not isinstance(output, response_model):
         raise CodexAgentError(f"Unexpected output type: {type(output)!r}")
+    if return_response_id:
+        if not response_id:
+            raise CodexAgentError("Codex agent did not expose a response id")
+        return output, response_id
     return output
 
 
