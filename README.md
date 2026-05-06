@@ -7,6 +7,7 @@ This repo starts with a few lightweight modules for using the ChatGPT Codex back
 - `config.py` - shared config with env-first defaults
 - `codex.py` - synchronous helpers
 - `codex_async.py` - asynchronous helpers
+- `codex_agent.py` - synchronous OpenAI Agents SDK helpers with tools
 
 The goal is to stay simple, readable, and easy to copy into other projects.
 
@@ -38,6 +39,12 @@ Async helpers:
 - `codex_generate_text_async(...)`
 - `codex_generate_model_async(...)`
 
+### `codex_agent.py`
+Sync tool-enabled helpers built on the OpenAI Agents SDK:
+
+- `codex_agent_generate_text(...)`
+- `codex_agent_generate_model(...)`
+
 Both modules:
 - work as importable Python modules
 - support plain text generation
@@ -51,6 +58,7 @@ Both modules:
 - Python 3.10+
 - `openai`
 - `pydantic`
+- `openai-agents`
 
 Install:
 
@@ -164,6 +172,26 @@ async def main():
     print(result)
 
 asyncio.run(main())
+```
+
+### Agent tool calling
+
+```python
+from agents import function_tool
+from codex_agent import codex_agent_generate_text
+
+@function_tool
+def get_stock_price(ticker: str) -> str:
+    """Get a fake current stock price for a ticker."""
+    return f"{ticker.upper()} is 123.45 USD"
+
+text = codex_agent_generate_text(
+    "What is the price of AAPL? Use the tool.",
+    tools=[get_stock_price],
+    system_prompt="You are a concise assistant. Use tools when useful.",
+)
+
+print(text)
 ```
 
 ## Retry behavior
