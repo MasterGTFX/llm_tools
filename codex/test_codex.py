@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from codex import (
     DEFAULT_MODEL,
+    CodexUsage,
     codex_agent_generate_model,
     codex_agent_generate_model_async,
     codex_agent_generate_text,
@@ -18,6 +19,7 @@ from codex import (
     codex_generate_model_async,
     codex_generate_text,
     codex_generate_text_async,
+    get_codex_usage,
 )
 
 pytestmark = pytest.mark.skipif(
@@ -329,3 +331,16 @@ def test_codex_agent_generate_model_async_e2e_one_turn_then_two_turn() -> None:
         _assert_agent_history(history, marker)
 
     asyncio.run(run_test())
+
+
+def test_get_codex_usage_e2e() -> None:
+    token = _access_token()
+    usage = get_codex_usage(access_token=token)
+    assert isinstance(usage, CodexUsage)
+    assert isinstance(usage.rate_limit.limit_reached, bool)
+    assert usage.rate_limit.primary_window.limit_window_seconds > 0
+    assert 0.0 <= usage.rate_limit.primary_window.used_percent <= 100.0
+    assert usage.rate_limit.secondary_window.limit_window_seconds > 0
+    assert 0.0 <= usage.rate_limit.secondary_window.used_percent <= 100.0
+    assert isinstance(usage.plan_type, str)
+    assert isinstance(usage.credits.balance, int)

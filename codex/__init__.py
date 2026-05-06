@@ -3,11 +3,16 @@ from .sync import codex_generate_model, codex_generate_text
 from .async_client import codex_generate_model_async, codex_generate_text_async
 from .agent import codex_agent_generate_model, codex_agent_generate_text
 from .agent_async import codex_agent_generate_model_async, codex_agent_generate_text_async
-from .helpers import CodexAgentError, CodexError
+from .helpers import CodexAgentError, CodexError, CodexUsage, Credits, RateLimit, RateLimitWindow, get_codex_usage
 
 __all__ = [
     "CodexAgentError",
     "CodexError",
+    "CodexUsage",
+    "Credits",
+    "RateLimit",
+    "RateLimitWindow",
+    "get_codex_usage",
     "DEFAULT_BASE_URL",
     "DEFAULT_MAX_RETRIES",
     "DEFAULT_MODEL",

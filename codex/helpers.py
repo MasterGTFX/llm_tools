@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Sequence
 
+import httpx
 from openai import AsyncOpenAI, OpenAI
+from pydantic import BaseModel
 
 from .config import DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT, get_access_token
 
@@ -16,6 +18,29 @@ class CodexError(RuntimeError):
 
 class CodexAgentError(RuntimeError):
     pass
+
+
+class RateLimitWindow(BaseModel):
+    limit_window_seconds: int
+    used_percent: float
+    reset_at: int
+    reset_after_seconds: int
+
+
+class RateLimit(BaseModel):
+    limit_reached: bool
+    primary_window: RateLimitWindow
+    secondary_window: RateLimitWindow
+
+
+class Credits(BaseModel):
+    balance: int
+
+
+class CodexUsage(BaseModel):
+    rate_limit: RateLimit
+    plan_type: str
+    credits: Credits
 
 
 def _require_access_token(
@@ -65,6 +90,28 @@ def get_openai_client(
 ) -> OpenAI:
     token = _require_access_token(access_token, error_type=CodexError)
     return OpenAI(api_key=token, base_url=base_url, max_retries=max_retries, timeout=timeout)
+
+
+def get_codex_usage(
+    access_token: Optional[str] = None,
+    account_id: Optional[str] = None,
+    timeout: float = DEFAULT_TIMEOUT,
+) -> CodexUsage:
+    token = _require_access_token(access_token, error_type=CodexError)
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+    }
+    if account_id:
+        headers["ChatGPT-Account-Id"] = account_id
+
+    resp = httpx.get(
+        "https://chatgpt.com/backend-api/wham/usage",
+        headers=headers,
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    return CodexUsage.model_validate(resp.json())
 
 
 def get_async_openai_client(
