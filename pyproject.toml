@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "llm-tools-codex"
+name = "llm-tools"
 version = "0.1.0"
-description = "Small Python helpers for OpenAI/Codex-style LLM workflows."
+description = "Small Python helpers for provider-based LLM workflows."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -20,5 +20,8 @@ dev = [
     "pytest",
 ]
 
-[tool.setuptools]
-packages = ["codex"]
+[tool.setuptools.packages.find]
+include = ["llm_tools*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

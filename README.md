@@ -1,33 +1,13 @@
 # llm_tools
 
-Small, copyable Python helpers for LLM workflows.
+Small, copyable Python helpers for provider-based LLM workflows.
 
-## Included
+The public API is client-oriented:
 
-### `codex/`
-Helpers for the ChatGPT Codex backend.
-
-Modules:
-- `codex.config` - env-based defaults
-- `codex.helpers` - shared internal helpers and errors
-- `codex.sync` - sync Responses API wrappers
-- `codex.async_client` - async Responses API wrappers
-- `codex.agent` - sync Agents SDK wrappers with tools
-- `codex.agent_async` - async Agents SDK wrappers with tools
-- `codex.__init__` - convenience re-exports
-
-Package-level exports include:
-- `codex_generate_text(...)`
-- `codex_generate_model(...)`
-- `codex_generate_text_async(...)`
-- `codex_generate_model_async(...)`
-- `codex_agent_generate_text(...)`
-- `codex_agent_generate_model(...)`
-- `codex_agent_generate_text_async(...)`
-- `codex_agent_generate_model_async(...)`
-
-For detailed usage and examples, see:
-- `codex/README.md`
+- `AsyncLLMClient` is the primary async client.
+- `LLMClient` is a sync facade for scripts.
+- Providers implement the backend-specific details.
+- `CodexProvider` is the first concrete provider.
 
 ## Requirements
 
@@ -58,14 +38,82 @@ pip install -e "D:\llm_tools[dev]"
 
 ## Usage
 
-After install, import the package as `codex`:
+### Async text
 
 ```python
-from codex import codex_generate_text
+from llm_tools import AsyncLLMClient, CodexProvider
 
-result = codex_generate_text(
-    "Write a small Python function that adds two numbers.",
-    access_token="your-token",
+client = AsyncLLMClient(
+    provider=CodexProvider(),
+    model="gpt-5.5",
 )
-print(result)
+
+result = await client.text("Write a small Python function that adds two numbers.")
+print(result.output)
+```
+
+### Structured output
+
+```python
+from pydantic import BaseModel
+
+
+class Extraction(BaseModel):
+    company: str
+    score: int
+
+
+result = await client.model(
+    "Extract company and score from: FutureApps AI scored 91.",
+    Extraction,
+)
+print(result.output)
+```
+
+### Tools
+
+```python
+from agents import function_tool
+
+
+@function_tool
+def get_stock_price(ticker: str) -> str:
+    return f"{ticker.upper()} is 123.45 USD"
+
+
+result = await client.tools(
+    "What is the price of AAPL? Use the tool.",
+    tools=[get_stock_price],
+)
+print(result.output)
+```
+
+### Sync facade
+
+```python
+from llm_tools import LLMClient, CodexProvider
+
+client = LLMClient(provider=CodexProvider())
+result = client.text("Say hello.")
+print(result.output)
+```
+
+`LLMClient` cannot be used from an already-running event loop. Use
+`AsyncLLMClient` in async applications.
+
+### Auth
+
+`CodexProvider()` uses `CodexLocalAuth` by default. It checks
+`OPENAI_CODEX_ACCESS_TOKEN` first, then local Codex auth files:
+
+- `~/.codex/auth.json`
+- `~/.config/codex/auth.json`
+- `%APPDATA%\codex\auth.json` on Windows, when available
+
+For an explicit token, pass `StaticTokenAuth`:
+
+```python
+from llm_tools import CodexProvider, StaticTokenAuth
+
+provider = CodexProvider(auth=StaticTokenAuth("your-token"))
 ```
