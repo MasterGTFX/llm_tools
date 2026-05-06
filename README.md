@@ -36,8 +36,36 @@ For detailed usage and examples, see:
 - `pydantic`
 - `openai-agents`
 
-Install:
+## Install
+
+From this repo checkout:
 
 ```bash
-pip install -r requirements.txt
+pip install .
+```
+
+From another project by Git URL:
+
+```bash
+pip install "git+https://github.com/<owner>/<repo>.git"
+```
+
+For editable local development:
+
+```bash
+pip install -e "D:\llm_tools[dev]"
+```
+
+## Usage
+
+After install, import the package as `codex`:
+
+```python
+from codex import codex_generate_text
+
+result = codex_generate_text(
+    "Write a small Python function that adds two numbers.",
+    access_token="your-token",
+)
+print(result)
 ```
