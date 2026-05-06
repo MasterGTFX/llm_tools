@@ -59,12 +59,19 @@ def _build_input(user_prompt: str, history: Optional[HistoryLike] = None) -> Lis
 def _get_client(
     access_token: Optional[str] = None,
     base_url: str = DEFAULT_BASE_URL,
+    max_retries: int = 2,
+    timeout: float = 60.0,
 ) -> OpenAI:
     token = access_token or os.environ.get("OPENAI_CODEX_ACCESS_TOKEN")
     if not token:
         raise CodexError("OPENAI_CODEX_ACCESS_TOKEN is required")
 
-    return OpenAI(api_key=token, base_url=base_url)
+    return OpenAI(
+        api_key=token,
+        base_url=base_url,
+        max_retries=max_retries,
+        timeout=timeout,
+    )
 
 
 def _updated_history(
@@ -87,8 +94,15 @@ def codex_generate_text(
     return_history: bool = False,
     access_token: Optional[str] = None,
     base_url: str = DEFAULT_BASE_URL,
+    max_retries: int = 2,
+    timeout: float = 60.0,
 ) -> Union[str, Tuple[str, List[MessageDict]]]:
-    client = _get_client(access_token=access_token, base_url=base_url)
+    client = _get_client(
+        access_token=access_token,
+        base_url=base_url,
+        max_retries=max_retries,
+        timeout=timeout,
+    )
     stream = client.responses.create(
         model=model,
         store=False,
@@ -127,8 +141,15 @@ def codex_generate_model(
     return_history: bool = False,
     access_token: Optional[str] = None,
     base_url: str = DEFAULT_BASE_URL,
+    max_retries: int = 2,
+    timeout: float = 60.0,
 ) -> Union[ModelT, Tuple[ModelT, List[MessageDict]]]:
-    client = _get_client(access_token=access_token, base_url=base_url)
+    client = _get_client(
+        access_token=access_token,
+        base_url=base_url,
+        max_retries=max_retries,
+        timeout=timeout,
+    )
 
     parsed: Optional[ModelT] = None
     raw_text = ""

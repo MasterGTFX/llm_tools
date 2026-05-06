@@ -29,6 +29,7 @@ Both modules:
 - support structured output with Pydantic models
 - support optional conversation history
 - can optionally return updated history
+- expose SDK retry and timeout settings
 
 ## Requirements
 
@@ -37,6 +38,12 @@ Both modules:
 - `pydantic`
 
 Install:
+
+```bash
+pip install -r requirements.txt
+```
+
+or:
 
 ```bash
 pip install openai pydantic
@@ -82,6 +89,8 @@ from codex import codex_generate_text
 text = codex_generate_text(
     "Say hello in one short sentence.",
     system_prompt="You are a helpful coding assistant. Answer concisely.",
+    max_retries=3,
+    timeout=90,
 )
 
 print(text)
@@ -141,6 +150,26 @@ async def main():
 
 asyncio.run(main())
 ```
+
+## Retry behavior
+
+The wrappers use the OpenAI SDK's built-in retry support.
+
+You can control it with:
+- `max_retries` (default: `2`)
+- `timeout` (default: `60` seconds)
+
+Example:
+
+```python
+text = codex_generate_text(
+    "Explain retry handling briefly.",
+    max_retries=4,
+    timeout=120,
+)
+```
+
+This is cleaner than adding a custom backoff decorator unless you later need very specific retry rules.
 
 ## Notes
 
