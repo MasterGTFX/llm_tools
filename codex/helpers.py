@@ -18,6 +18,17 @@ class CodexAgentError(RuntimeError):
     pass
 
 
+def _require_access_token(
+    access_token: Optional[str],
+    *,
+    error_type: type[RuntimeError],
+) -> str:
+    token = access_token or get_access_token()
+    if not token:
+        raise error_type("OPENAI_CODEX_ACCESS_TOKEN is required")
+    return token
+
+
 def build_input(user_prompt: str, history: Optional[HistoryLike] = None) -> List[Dict[str, Any]]:
     items: List[Dict[str, Any]] = []
 
@@ -62,10 +73,7 @@ def get_openai_client(
     max_retries: int = DEFAULT_MAX_RETRIES,
     timeout: float = DEFAULT_TIMEOUT,
 ) -> OpenAI:
-    token = access_token or get_access_token()
-    if not token:
-        raise CodexError("OPENAI_CODEX_ACCESS_TOKEN is required")
-
+    token = _require_access_token(access_token, error_type=CodexError)
     return OpenAI(api_key=token, base_url=base_url, max_retries=max_retries, timeout=timeout)
 
 
@@ -75,8 +83,5 @@ def get_async_openai_client(
     max_retries: int = DEFAULT_MAX_RETRIES,
     timeout: float = DEFAULT_TIMEOUT,
 ) -> AsyncOpenAI:
-    token = access_token or get_access_token()
-    if not token:
-        raise CodexAgentError("OPENAI_CODEX_ACCESS_TOKEN is required")
-
+    token = _require_access_token(access_token, error_type=CodexAgentError)
     return AsyncOpenAI(api_key=token, base_url=base_url, max_retries=max_retries, timeout=timeout)

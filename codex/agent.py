@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, List, Optional, Sequence, Tuple, Type, TypeVar, Union
+from typing import Any, Awaitable, List, Optional, Sequence, Tuple, Type, TypeVar, Union
 
 from pydantic import BaseModel
 
@@ -10,6 +10,18 @@ from .config import DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_MODEL, DEFAUL
 from .helpers import CodexAgentError
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
+AgentHistory = List[dict[str, Any]]
+
+
+def _run_sync(coro: Awaitable[Any], fn_name: str) -> Any:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    raise CodexAgentError(
+        f"{fn_name} cannot be called from a running event loop. "
+        f"Use {fn_name}_async instead."
+    )
 
 
 def codex_agent_generate_text(
@@ -18,31 +30,28 @@ def codex_agent_generate_text(
     tools: Sequence[Any],
     system_prompt: str = DEFAULT_SYSTEM_PROMPT,
     model: str = DEFAULT_MODEL,
-    history: Optional[List[dict[str, Any]]] = None,
+    history: Optional[AgentHistory] = None,
     return_history: bool = False,
     access_token: Optional[str] = None,
     base_url: str = DEFAULT_BASE_URL,
     max_retries: int = DEFAULT_MAX_RETRIES,
     timeout: float = DEFAULT_TIMEOUT,
-) -> Union[str, Tuple[str, List[dict[str, Any]]]]:
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(
-            codex_agent_generate_text_async(
-                user_prompt,
-                tools=tools,
-                system_prompt=system_prompt,
-                model=model,
-                history=history,
-                return_history=return_history,
-                access_token=access_token,
-                base_url=base_url,
-                max_retries=max_retries,
-                timeout=timeout,
-            )
-        )
-    raise CodexAgentError("codex_agent_generate_text cannot be called from a running event loop. Use codex_agent_generate_text_async instead.")
+) -> Union[str, Tuple[str, AgentHistory]]:
+    return _run_sync(
+        codex_agent_generate_text_async(
+            user_prompt,
+            tools=tools,
+            system_prompt=system_prompt,
+            model=model,
+            history=history,
+            return_history=return_history,
+            access_token=access_token,
+            base_url=base_url,
+            max_retries=max_retries,
+            timeout=timeout,
+        ),
+        "codex_agent_generate_text",
+    )
 
 
 def codex_agent_generate_model(
@@ -52,29 +61,26 @@ def codex_agent_generate_model(
     tools: Sequence[Any],
     system_prompt: str = DEFAULT_SYSTEM_PROMPT,
     model: str = DEFAULT_MODEL,
-    history: Optional[List[dict[str, Any]]] = None,
+    history: Optional[AgentHistory] = None,
     return_history: bool = False,
     access_token: Optional[str] = None,
     base_url: str = DEFAULT_BASE_URL,
     max_retries: int = DEFAULT_MAX_RETRIES,
     timeout: float = DEFAULT_TIMEOUT,
-) -> Union[ModelT, Tuple[ModelT, List[dict[str, Any]]]]:
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(
-            codex_agent_generate_model_async(
-                user_prompt,
-                response_model,
-                tools=tools,
-                system_prompt=system_prompt,
-                model=model,
-                history=history,
-                return_history=return_history,
-                access_token=access_token,
-                base_url=base_url,
-                max_retries=max_retries,
-                timeout=timeout,
-            )
-        )
-    raise CodexAgentError("codex_agent_generate_model cannot be called from a running event loop. Use codex_agent_generate_model_async instead.")
+) -> Union[ModelT, Tuple[ModelT, AgentHistory]]:
+    return _run_sync(
+        codex_agent_generate_model_async(
+            user_prompt,
+            response_model,
+            tools=tools,
+            system_prompt=system_prompt,
+            model=model,
+            history=history,
+            return_history=return_history,
+            access_token=access_token,
+            base_url=base_url,
+            max_retries=max_retries,
+            timeout=timeout,
+        ),
+        "codex_agent_generate_model",
+    )
