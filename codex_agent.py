@@ -1,34 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any, List, Optional, Sequence, Tuple, Type, TypeVar, Union
 
-from agents import Agent, ModelSettings, OpenAIResponsesModel, Runner, set_default_openai_client
 from pydantic import BaseModel
 
-from codex_helpers import CodexAgentError, get_async_openai_client
+from codex_agent_async import codex_agent_generate_model_async, codex_agent_generate_text_async
+from codex_helpers import CodexAgentError
 from config import DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT, DEFAULT_TIMEOUT
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
-
-
-def _build_agent(
-    *,
-    client: Any,
-    system_prompt: str,
-    model: str,
-    tools: Sequence[Any],
-    output_type: Any | None = None,
-) -> Agent[Any]:
-    set_default_openai_client(client)
-
-    return Agent(
-        name="Codex agent",
-        instructions=system_prompt,
-        model=OpenAIResponsesModel(model=model, openai_client=client),
-        model_settings=ModelSettings(store=False),
-        tools=list(tools),
-        output_type=output_type,
-    )
 
 
 def codex_agent_generate_text(
@@ -44,49 +25,24 @@ def codex_agent_generate_text(
     max_retries: int = DEFAULT_MAX_RETRIES,
     timeout: float = DEFAULT_TIMEOUT,
 ) -> Union[str, Tuple[str, List[dict[str, Any]]]]:
-    client = get_async_openai_client(
-        access_token=access_token,
-        base_url=base_url,
-        max_retries=max_retries,
-        timeout=timeout,
-    )
-    agent = _build_agent(
-        client=client,
-        system_prompt=system_prompt,
-        model=model,
-        tools=tools,
-    )
-
-    async def _consume() -> Tuple[str, List[dict[str, Any]]]:
-        input_payload: Union[str, List[dict[str, Any]]] = user_prompt
-        if history:
-            input_payload = list(history) + [{"role": "user", "content": user_prompt}]
-
-        result = Runner.run_streamed(agent, input_payload)
-        async for _event in result.stream_events():
-            pass
-
-        new_history: List[dict[str, Any]] = list(history or [])
-        new_history.append({"role": "user", "content": user_prompt})
-
-        for item in getattr(result, "new_items", []) or []:
-            raw_item = getattr(item, "raw_item", None)
-            if raw_item is not None:
-                if hasattr(raw_item, "model_dump"):
-                    new_history.append(raw_item.model_dump())
-                elif isinstance(raw_item, dict):
-                    new_history.append(raw_item)
-
-        return str(result.final_output), new_history
-
-    import asyncio
-
-    output, replay_history = asyncio.run(_consume())
-    if not output:
-        raise CodexAgentError("Codex agent returned empty text output")
-    if return_history:
-        return output, replay_history
-    return output
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(
+            codex_agent_generate_text_async(
+                user_prompt,
+                tools=tools,
+                system_prompt=system_prompt,
+                model=model,
+                history=history,
+                return_history=return_history,
+                access_token=access_token,
+                base_url=base_url,
+                max_retries=max_retries,
+                timeout=timeout,
+            )
+        )
+    raise CodexAgentError("codex_agent_generate_text cannot be called from a running event loop. Use codex_agent_generate_text_async instead.")
 
 
 def codex_agent_generate_model(
@@ -103,52 +59,25 @@ def codex_agent_generate_model(
     max_retries: int = DEFAULT_MAX_RETRIES,
     timeout: float = DEFAULT_TIMEOUT,
 ) -> Union[ModelT, Tuple[ModelT, List[dict[str, Any]]]]:
-    client = get_async_openai_client(
-        access_token=access_token,
-        base_url=base_url,
-        max_retries=max_retries,
-        timeout=timeout,
-    )
-    agent = _build_agent(
-        client=client,
-        system_prompt=system_prompt,
-        model=model,
-        tools=tools,
-        output_type=response_model,
-    )
-
-    async def _consume() -> Tuple[Any, List[dict[str, Any]]]:
-        input_payload: Union[str, List[dict[str, Any]]] = user_prompt
-        if history:
-            input_payload = list(history) + [{"role": "user", "content": user_prompt}]
-
-        result = Runner.run_streamed(agent, input_payload)
-        async for _event in result.stream_events():
-            pass
-
-        new_history: List[dict[str, Any]] = list(history or [])
-        new_history.append({"role": "user", "content": user_prompt})
-
-        for item in getattr(result, "new_items", []) or []:
-            raw_item = getattr(item, "raw_item", None)
-            if raw_item is not None:
-                if hasattr(raw_item, "model_dump"):
-                    new_history.append(raw_item.model_dump())
-                elif isinstance(raw_item, dict):
-                    new_history.append(raw_item)
-
-        return result.final_output, new_history
-
-    import asyncio
-
-    output, replay_history = asyncio.run(_consume())
-    if output is None:
-        raise CodexAgentError("Codex agent returned empty structured output")
-    if not isinstance(output, response_model):
-        raise CodexAgentError(f"Unexpected output type: {type(output)!r}")
-    if return_history:
-        return output, replay_history
-    return output
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(
+            codex_agent_generate_model_async(
+                user_prompt,
+                response_model,
+                tools=tools,
+                system_prompt=system_prompt,
+                model=model,
+                history=history,
+                return_history=return_history,
+                access_token=access_token,
+                base_url=base_url,
+                max_retries=max_retries,
+                timeout=timeout,
+            )
+        )
+    raise CodexAgentError("codex_agent_generate_model cannot be called from a running event loop. Use codex_agent_generate_model_async instead.")
 
 
 __all__ = [

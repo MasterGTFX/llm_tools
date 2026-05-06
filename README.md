@@ -9,6 +9,7 @@ This repo starts with a few lightweight modules for using the ChatGPT Codex back
 - `codex.py` - synchronous helpers
 - `codex_async.py` - asynchronous helpers
 - `codex_agent.py` - synchronous OpenAI Agents SDK helpers with tools
+- `codex_agent_async.py` - asynchronous OpenAI Agents SDK helpers with tools
 
 The goal is to stay simple, readable, and easy to copy into other projects.
 
@@ -49,7 +50,13 @@ Sync tool-enabled helpers built on the OpenAI Agents SDK:
 - `codex_agent_generate_text(...)`
 - `codex_agent_generate_model(...)`
 
-These can optionally return replayable multi-turn history with:
+### `codex_agent_async.py`
+Async tool-enabled helpers built on the OpenAI Agents SDK:
+
+- `codex_agent_generate_text_async(...)`
+- `codex_agent_generate_model_async(...)`
+
+Both agent modules can optionally return replayable multi-turn history with:
 - `return_history=True`
 
 Both modules:
@@ -223,6 +230,37 @@ follow_up, history = codex_agent_generate_text(
     history=history,
     return_history=True,
 )
+```
+
+### Async agent tool calling
+
+```python
+import asyncio
+from agents import function_tool
+from codex_agent_async import codex_agent_generate_text_async
+
+@function_tool
+def get_stock_price(ticker: str) -> str:
+    return f"{ticker.upper()} is 123.45 USD"
+
+async def main():
+    text, history = await codex_agent_generate_text_async(
+        "What is the price of AAPL? Use the tool.",
+        tools=[get_stock_price],
+        return_history=True,
+    )
+
+    follow_up, history = await codex_agent_generate_text_async(
+        "And what ticker did you just check?",
+        tools=[get_stock_price],
+        history=history,
+        return_history=True,
+    )
+
+    print(text)
+    print(follow_up)
+
+asyncio.run(main())
 ```
 
 The returned history is replayable. It includes the items needed for multi-turn continuation on this backend, including user messages, assistant `function_call` items, `function_call_output` items, and assistant message items.
