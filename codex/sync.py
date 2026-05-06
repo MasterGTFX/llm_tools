@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import Any, List, Optional, Tuple, Type, TypeVar, Union
+from typing import List, Optional, Tuple, Type, TypeVar, Union
 
 from pydantic import BaseModel
 
-from codex_helpers import CodexError, HistoryLike, MessageDict, build_input, get_openai_client, updated_history
-from config import DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT, DEFAULT_TIMEOUT
+from .config import DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT, DEFAULT_TIMEOUT
+from .helpers import CodexError, HistoryLike, MessageDict, build_input, get_openai_client, updated_history
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -87,8 +87,7 @@ def codex_generate_model(
         text_format=response_model,
     ) as stream:
         for event in stream:
-            event_type = getattr(event, "type", None)
-            if event_type == "response.output_text.done":
+            if getattr(event, "type", None) == "response.output_text.done":
                 raw_text = getattr(event, "text", "") or raw_text
                 parsed = getattr(event, "parsed", None)
 
@@ -99,25 +98,3 @@ def codex_generate_model(
         history_text = raw_text or parsed.model_dump_json()
         return parsed, updated_history(user_prompt=user_prompt, assistant_text=history_text, history=history)
     return parsed
-
-
-__all__ = [
-    "CodexError",
-    "DEFAULT_BASE_URL",
-    "DEFAULT_MODEL",
-    "DEFAULT_SYSTEM_PROMPT",
-    "codex_generate_model",
-    "codex_generate_text",
-]
-
-
-if __name__ == "__main__":
-    class DemoExtraction(BaseModel):
-        company: str
-        score: int
-
-    print("TEXT DEMO:")
-    print(codex_generate_text("Say hello in one short sentence."))
-    print()
-    print("MODEL DEMO:")
-    print(codex_generate_model("Extract company and score from: FutureApps AI scored 91.", DemoExtraction))

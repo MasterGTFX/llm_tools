@@ -5,9 +5,9 @@ from typing import Any, List, Optional, Sequence, Tuple, Type, TypeVar, Union
 
 from pydantic import BaseModel
 
-from codex_agent_async import codex_agent_generate_model_async, codex_agent_generate_text_async
-from codex_helpers import CodexAgentError
-from config import DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT, DEFAULT_TIMEOUT
+from .agent_async import codex_agent_generate_model_async, codex_agent_generate_text_async
+from .config import DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT, DEFAULT_TIMEOUT
+from .helpers import CodexAgentError
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -78,49 +78,3 @@ def codex_agent_generate_model(
             )
         )
     raise CodexAgentError("codex_agent_generate_model cannot be called from a running event loop. Use codex_agent_generate_model_async instead.")
-
-
-__all__ = [
-    "CodexAgentError",
-    "codex_agent_generate_model",
-    "codex_agent_generate_text",
-]
-
-
-if __name__ == "__main__":
-    from agents import function_tool
-
-    class StockAnswer(BaseModel):
-        ticker: str
-        price: float
-        currency: str
-
-    @function_tool
-    def get_stock_price(ticker: str) -> str:
-        """Get a fake current stock price for a ticker.
-
-        Args:
-            ticker: Stock ticker symbol, for example AAPL.
-        """
-        print(f"TOOL CALLED: get_stock_price({ticker})")
-        return f'{ticker.upper()} is 123.45 USD'
-
-    print("TEXT DEMO:")
-    print(
-        codex_agent_generate_text(
-            "What is the price of AAPL? Use the tool.",
-            tools=[get_stock_price],
-            system_prompt="You are a concise assistant. Use tools when useful.",
-        )
-    )
-
-    print()
-    print("MODEL DEMO:")
-    print(
-        codex_agent_generate_model(
-            "Return the price of AAPL as structured output. Use the tool.",
-            StockAnswer,
-            tools=[get_stock_price],
-            system_prompt="You are a concise assistant. Use tools when useful.",
-        )
-    )

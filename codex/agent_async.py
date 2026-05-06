@@ -5,8 +5,8 @@ from typing import Any, List, Optional, Sequence, Tuple, Type, TypeVar, Union
 from agents import Agent, ModelSettings, OpenAIResponsesModel, Runner, set_default_openai_client
 from pydantic import BaseModel
 
-from codex_helpers import CodexAgentError, get_async_openai_client
-from config import DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT, DEFAULT_TIMEOUT
+from .config import DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT, DEFAULT_TIMEOUT
+from .helpers import CodexAgentError, get_async_openai_client
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -20,7 +20,6 @@ def _build_agent(
     output_type: Any | None = None,
 ) -> Agent[Any]:
     set_default_openai_client(client)
-
     return Agent(
         name="Codex agent",
         instructions=system_prompt,
@@ -85,11 +84,7 @@ async def codex_agent_generate_text_async(
         tools=tools,
     )
 
-    output, replay_history = await _run_agent_with_history(
-        agent=agent,
-        user_prompt=user_prompt,
-        history=history,
-    )
+    output, replay_history = await _run_agent_with_history(agent=agent, user_prompt=user_prompt, history=history)
     output_text = str(output)
     if not output_text:
         raise CodexAgentError("Codex agent returned empty text output")
@@ -126,11 +121,7 @@ async def codex_agent_generate_model_async(
         output_type=response_model,
     )
 
-    output, replay_history = await _run_agent_with_history(
-        agent=agent,
-        user_prompt=user_prompt,
-        history=history,
-    )
+    output, replay_history = await _run_agent_with_history(agent=agent, user_prompt=user_prompt, history=history)
     if output is None:
         raise CodexAgentError("Codex agent returned empty structured output")
     if not isinstance(output, response_model):
@@ -138,53 +129,3 @@ async def codex_agent_generate_model_async(
     if return_history:
         return output, replay_history
     return output
-
-
-__all__ = [
-    "CodexAgentError",
-    "codex_agent_generate_model_async",
-    "codex_agent_generate_text_async",
-]
-
-
-if __name__ == "__main__":
-    import asyncio
-    from agents import function_tool
-
-    class StockAnswer(BaseModel):
-        ticker: str
-        price: float
-        currency: str
-
-    @function_tool
-    def get_stock_price(ticker: str) -> str:
-        """Get a fake current stock price for a ticker.
-
-        Args:
-            ticker: Stock ticker symbol, for example AAPL.
-        """
-        print(f"TOOL CALLED: get_stock_price({ticker})")
-        return f'{ticker.upper()} is 123.45 USD'
-
-    async def main() -> None:
-        print("TEXT DEMO:")
-        print(
-            await codex_agent_generate_text_async(
-                "What is the price of AAPL? Use the tool.",
-                tools=[get_stock_price],
-                system_prompt="You are a concise assistant. Use tools when useful.",
-            )
-        )
-
-        print()
-        print("MODEL DEMO:")
-        print(
-            await codex_agent_generate_model_async(
-                "Return the price of AAPL as structured output. Use the tool.",
-                StockAnswer,
-                tools=[get_stock_price],
-                system_prompt="You are a concise assistant. Use tools when useful.",
-            )
-        )
-
-    asyncio.run(main())

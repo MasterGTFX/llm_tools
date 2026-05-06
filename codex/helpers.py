@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from openai import AsyncOpenAI, OpenAI
 
-from config import DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT, get_access_token
+from .config import DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT, get_access_token
 
 MessageDict = Dict[str, str]
 HistoryLike = Sequence[MessageDict]
@@ -32,24 +32,14 @@ def build_input(user_prompt: str, history: Optional[HistoryLike] = None) -> List
             items.append(
                 {
                     "role": role,
-                    "content": [
-                        {
-                            "type": "input_text",
-                            "text": content,
-                        }
-                    ],
+                    "content": [{"type": "input_text", "text": content}],
                 }
             )
 
     items.append(
         {
             "role": "user",
-            "content": [
-                {
-                    "type": "input_text",
-                    "text": user_prompt,
-                }
-            ],
+            "content": [{"type": "input_text", "text": user_prompt}],
         }
     )
     return items
@@ -76,12 +66,7 @@ def get_openai_client(
     if not token:
         raise CodexError("OPENAI_CODEX_ACCESS_TOKEN is required")
 
-    return OpenAI(
-        api_key=token,
-        base_url=base_url,
-        max_retries=max_retries,
-        timeout=timeout,
-    )
+    return OpenAI(api_key=token, base_url=base_url, max_retries=max_retries, timeout=timeout)
 
 
 def get_async_openai_client(
@@ -94,9 +79,4 @@ def get_async_openai_client(
     if not token:
         raise CodexAgentError("OPENAI_CODEX_ACCESS_TOKEN is required")
 
-    return AsyncOpenAI(
-        api_key=token,
-        base_url=base_url,
-        max_retries=max_retries,
-        timeout=timeout,
-    )
+    return AsyncOpenAI(api_key=token, base_url=base_url, max_retries=max_retries, timeout=timeout)
