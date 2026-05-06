@@ -2,14 +2,29 @@
 
 Small, copyable Python helpers for LLM workflows.
 
-This repo starts with two lightweight modules for using the ChatGPT Codex backend from the OpenAI Python SDK:
+This repo starts with a few lightweight modules for using the ChatGPT Codex backend from the OpenAI Python SDK:
 
+- `config.py` - shared config with env-first defaults
 - `codex.py` - synchronous helpers
 - `codex_async.py` - asynchronous helpers
 
 The goal is to stay simple, readable, and easy to copy into other projects.
 
 ## What is included
+
+### `config.py`
+Shared config values.
+
+Each default first checks environment variables, then falls back to a built-in value.
+
+Supported env vars:
+
+- `OPENAI_CODEX_ACCESS_TOKEN`
+- `OPENAI_CODEX_BASE_URL`
+- `OPENAI_CODEX_MODEL`
+- `OPENAI_CODEX_SYSTEM_PROMPT`
+- `OPENAI_CODEX_MAX_RETRIES`
+- `OPENAI_CODEX_TIMEOUT`
 
 ### `codex.py`
 Sync helpers:

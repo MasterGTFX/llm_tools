@@ -1,18 +1,22 @@
 from __future__ import annotations
 
-import os
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Type, TypeVar, Union
 
 from openai import OpenAI
 from pydantic import BaseModel
 
+from config import (
+    DEFAULT_BASE_URL,
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_MODEL,
+    DEFAULT_SYSTEM_PROMPT,
+    DEFAULT_TIMEOUT,
+    get_access_token,
+)
+
 MessageDict = Dict[str, str]
 HistoryLike = Sequence[MessageDict]
 ModelT = TypeVar("ModelT", bound=BaseModel)
-
-DEFAULT_BASE_URL = "https://chatgpt.com/backend-api/codex"
-DEFAULT_SYSTEM_PROMPT = "You are a helpful coding assistant. Answer concisely."
-DEFAULT_MODEL = "gpt-5.5"
 
 
 class CodexError(RuntimeError):
@@ -59,10 +63,10 @@ def _build_input(user_prompt: str, history: Optional[HistoryLike] = None) -> Lis
 def _get_client(
     access_token: Optional[str] = None,
     base_url: str = DEFAULT_BASE_URL,
-    max_retries: int = 2,
-    timeout: float = 60.0,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    timeout: float = DEFAULT_TIMEOUT,
 ) -> OpenAI:
-    token = access_token or os.environ.get("OPENAI_CODEX_ACCESS_TOKEN")
+    token = access_token or get_access_token()
     if not token:
         raise CodexError("OPENAI_CODEX_ACCESS_TOKEN is required")
 
@@ -94,8 +98,8 @@ def codex_generate_text(
     return_history: bool = False,
     access_token: Optional[str] = None,
     base_url: str = DEFAULT_BASE_URL,
-    max_retries: int = 2,
-    timeout: float = 60.0,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    timeout: float = DEFAULT_TIMEOUT,
 ) -> Union[str, Tuple[str, List[MessageDict]]]:
     client = _get_client(
         access_token=access_token,
@@ -141,8 +145,8 @@ def codex_generate_model(
     return_history: bool = False,
     access_token: Optional[str] = None,
     base_url: str = DEFAULT_BASE_URL,
-    max_retries: int = 2,
-    timeout: float = 60.0,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    timeout: float = DEFAULT_TIMEOUT,
 ) -> Union[ModelT, Tuple[ModelT, List[MessageDict]]]:
     client = _get_client(
         access_token=access_token,
