@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import os
 
-DEFAULT_BASE_URL = os.getenv("OPENAI_CODEX_BASE_URL", "https://api.openai.com/v1")
-DEFAULT_MODEL = os.getenv("OPENAI_CODEX_MODEL", "gpt-5")
+from dotenv import load_dotenv
+
+load_dotenv()
+
+DEFAULT_BASE_URL = os.getenv("OPENAI_CODEX_BASE_URL", "https://chatgpt.com/backend-api/codex")
+DEFAULT_MODEL = os.getenv("OPENAI_CODEX_MODEL", "gpt-5.5")
 DEFAULT_SYSTEM_PROMPT = os.getenv(
     "OPENAI_CODEX_SYSTEM_PROMPT",
     "You are a helpful coding assistant. Answer concisely.",
