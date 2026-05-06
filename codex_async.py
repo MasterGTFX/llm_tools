@@ -1,92 +1,13 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Type, TypeVar, Union
+from typing import Any, List, Optional, Tuple, Type, TypeVar, Union
 
-from openai import AsyncOpenAI
 from pydantic import BaseModel
 
-from config import (
-    DEFAULT_BASE_URL,
-    DEFAULT_MAX_RETRIES,
-    DEFAULT_MODEL,
-    DEFAULT_SYSTEM_PROMPT,
-    DEFAULT_TIMEOUT,
-    get_access_token,
-)
+from codex_helpers import CodexError, HistoryLike, MessageDict, build_input, get_async_openai_client, updated_history
+from config import DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT, DEFAULT_TIMEOUT
 
-MessageDict = Dict[str, str]
-HistoryLike = Sequence[MessageDict]
 ModelT = TypeVar("ModelT", bound=BaseModel)
-
-
-class CodexError(RuntimeError):
-    pass
-
-
-def _build_input(user_prompt: str, history: Optional[HistoryLike] = None) -> List[Dict[str, Any]]:
-    items: List[Dict[str, Any]] = []
-
-    if history:
-        for msg in history:
-            role = msg.get("role")
-            content = msg.get("content")
-            if role not in {"user", "assistant", "system"}:
-                raise ValueError(f"Unsupported history role: {role!r}")
-            if not isinstance(content, str):
-                raise ValueError("History message content must be a string")
-            items.append(
-                {
-                    "role": role,
-                    "content": [
-                        {
-                            "type": "input_text",
-                            "text": content,
-                        }
-                    ],
-                }
-            )
-
-    items.append(
-        {
-            "role": "user",
-            "content": [
-                {
-                    "type": "input_text",
-                    "text": user_prompt,
-                }
-            ],
-        }
-    )
-    return items
-
-
-def _get_client(
-    access_token: Optional[str] = None,
-    base_url: str = DEFAULT_BASE_URL,
-    max_retries: int = DEFAULT_MAX_RETRIES,
-    timeout: float = DEFAULT_TIMEOUT,
-) -> AsyncOpenAI:
-    token = access_token or get_access_token()
-    if not token:
-        raise CodexError("OPENAI_CODEX_ACCESS_TOKEN is required")
-
-    return AsyncOpenAI(
-        api_key=token,
-        base_url=base_url,
-        max_retries=max_retries,
-        timeout=timeout,
-    )
-
-
-def _updated_history(
-    user_prompt: str,
-    assistant_text: str,
-    history: Optional[HistoryLike] = None,
-) -> List[MessageDict]:
-    new_history = list(history or [])
-    new_history.append({"role": "user", "content": user_prompt})
-    new_history.append({"role": "assistant", "content": assistant_text})
-    return new_history
 
 
 async def codex_generate_text_async(
@@ -101,7 +22,7 @@ async def codex_generate_text_async(
     max_retries: int = DEFAULT_MAX_RETRIES,
     timeout: float = DEFAULT_TIMEOUT,
 ) -> Union[str, Tuple[str, List[MessageDict]]]:
-    client = _get_client(
+    client = get_async_openai_client(
         access_token=access_token,
         base_url=base_url,
         max_retries=max_retries,
@@ -112,7 +33,7 @@ async def codex_generate_text_async(
         store=False,
         stream=True,
         instructions=system_prompt,
-        input=_build_input(user_prompt=user_prompt, history=history),
+        input=build_input(user_prompt=user_prompt, history=history),
     )
 
     text_parts: List[str] = []
@@ -131,7 +52,7 @@ async def codex_generate_text_async(
         raise CodexError("Codex returned empty text output")
 
     if return_history:
-        return result, _updated_history(user_prompt=user_prompt, assistant_text=result, history=history)
+        return result, updated_history(user_prompt=user_prompt, assistant_text=result, history=history)
     return result
 
 
@@ -148,7 +69,7 @@ async def codex_generate_model_async(
     max_retries: int = DEFAULT_MAX_RETRIES,
     timeout: float = DEFAULT_TIMEOUT,
 ) -> Union[ModelT, Tuple[ModelT, List[MessageDict]]]:
-    client = _get_client(
+    client = get_async_openai_client(
         access_token=access_token,
         base_url=base_url,
         max_retries=max_retries,
@@ -162,7 +83,7 @@ async def codex_generate_model_async(
         model=model,
         store=False,
         instructions=system_prompt,
-        input=_build_input(user_prompt=user_prompt, history=history),
+        input=build_input(user_prompt=user_prompt, history=history),
         text_format=response_model,
     ) as stream:
         async for event in stream:
@@ -176,7 +97,7 @@ async def codex_generate_model_async(
 
     if return_history:
         history_text = raw_text or parsed.model_dump_json()
-        return parsed, _updated_history(user_prompt=user_prompt, assistant_text=history_text, history=history)
+        return parsed, updated_history(user_prompt=user_prompt, assistant_text=history_text, history=history)
     return parsed
 
 

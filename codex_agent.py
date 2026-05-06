@@ -3,46 +3,17 @@ from __future__ import annotations
 from typing import Any, List, Optional, Sequence, Tuple, Type, TypeVar, Union
 
 from agents import Agent, ModelSettings, OpenAIResponsesModel, Runner, set_default_openai_client
-from openai import AsyncOpenAI
 from pydantic import BaseModel
 
-from config import (
-    DEFAULT_BASE_URL,
-    DEFAULT_MAX_RETRIES,
-    DEFAULT_MODEL,
-    DEFAULT_SYSTEM_PROMPT,
-    DEFAULT_TIMEOUT,
-    get_access_token,
-)
+from codex_helpers import CodexAgentError, get_async_openai_client
+from config import DEFAULT_BASE_URL, DEFAULT_MAX_RETRIES, DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT, DEFAULT_TIMEOUT
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
-class CodexAgentError(RuntimeError):
-    pass
-
-
-def _get_client(
-    access_token: Optional[str] = None,
-    base_url: str = DEFAULT_BASE_URL,
-    max_retries: int = DEFAULT_MAX_RETRIES,
-    timeout: float = DEFAULT_TIMEOUT,
-) -> AsyncOpenAI:
-    token = access_token or get_access_token()
-    if not token:
-        raise CodexAgentError("OPENAI_CODEX_ACCESS_TOKEN is required")
-
-    return AsyncOpenAI(
-        api_key=token,
-        base_url=base_url,
-        max_retries=max_retries,
-        timeout=timeout,
-    )
-
-
 def _build_agent(
     *,
-    client: AsyncOpenAI,
+    client: Any,
     system_prompt: str,
     model: str,
     tools: Sequence[Any],
@@ -73,7 +44,7 @@ def codex_agent_generate_text(
     max_retries: int = DEFAULT_MAX_RETRIES,
     timeout: float = DEFAULT_TIMEOUT,
 ) -> Union[str, Tuple[str, List[dict[str, Any]]]]:
-    client = _get_client(
+    client = get_async_openai_client(
         access_token=access_token,
         base_url=base_url,
         max_retries=max_retries,
@@ -96,15 +67,12 @@ def codex_agent_generate_text(
             pass
 
         new_history: List[dict[str, Any]] = list(history or [])
-        if not history:
-            new_history.append({"role": "user", "content": user_prompt})
-        else:
-            new_history.append({"role": "user", "content": user_prompt})
+        new_history.append({"role": "user", "content": user_prompt})
 
-        for item in getattr(result, 'new_items', []) or []:
-            raw_item = getattr(item, 'raw_item', None)
+        for item in getattr(result, "new_items", []) or []:
+            raw_item = getattr(item, "raw_item", None)
             if raw_item is not None:
-                if hasattr(raw_item, 'model_dump'):
+                if hasattr(raw_item, "model_dump"):
                     new_history.append(raw_item.model_dump())
                 elif isinstance(raw_item, dict):
                     new_history.append(raw_item)
@@ -135,7 +103,7 @@ def codex_agent_generate_model(
     max_retries: int = DEFAULT_MAX_RETRIES,
     timeout: float = DEFAULT_TIMEOUT,
 ) -> Union[ModelT, Tuple[ModelT, List[dict[str, Any]]]]:
-    client = _get_client(
+    client = get_async_openai_client(
         access_token=access_token,
         base_url=base_url,
         max_retries=max_retries,
@@ -161,10 +129,10 @@ def codex_agent_generate_model(
         new_history: List[dict[str, Any]] = list(history or [])
         new_history.append({"role": "user", "content": user_prompt})
 
-        for item in getattr(result, 'new_items', []) or []:
-            raw_item = getattr(item, 'raw_item', None)
+        for item in getattr(result, "new_items", []) or []:
+            raw_item = getattr(item, "raw_item", None)
             if raw_item is not None:
-                if hasattr(raw_item, 'model_dump'):
+                if hasattr(raw_item, "model_dump"):
                     new_history.append(raw_item.model_dump())
                 elif isinstance(raw_item, dict):
                     new_history.append(raw_item)
