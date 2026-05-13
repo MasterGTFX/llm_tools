@@ -21,6 +21,7 @@ ModelT = TypeVar("ModelT", bound=BaseModel)
 
 DEFAULT_CODEX_BASE_URL = os.getenv("OPENAI_CODEX_BASE_URL", "https://chatgpt.com/backend-api/codex")
 DEFAULT_CODEX_MODEL = os.getenv("OPENAI_CODEX_MODEL", "gpt-5.5")
+DEFAULT_CODEX_IMAGE_MODEL = os.getenv("OPENAI_CODEX_IMAGE_MODEL", "gpt-image-2")
 DEFAULT_CODEX_SYSTEM_PROMPT = os.getenv(
     "OPENAI_CODEX_SYSTEM_PROMPT",
     "You are a helpful coding assistant. Answer concisely.",
@@ -36,6 +37,7 @@ class CodexProvider:
     auth: AuthProvider = field(default_factory=CodexLocalAuth)
     base_url: str = DEFAULT_CODEX_BASE_URL
     default_model: str = DEFAULT_CODEX_MODEL
+    default_image_model: str = DEFAULT_CODEX_IMAGE_MODEL
     default_system_prompt: str = DEFAULT_CODEX_SYSTEM_PROMPT
     default_timeout: float = DEFAULT_CODEX_TIMEOUT
     default_max_retries: int = DEFAULT_CODEX_MAX_RETRIES
@@ -53,6 +55,16 @@ class CodexProvider:
 
     def _max_retries(self, options: GenerateOptions) -> int:
         return options.max_retries if options.max_retries is not None else self.default_max_retries
+
+    def _image_tool(self, options: GenerateOptions) -> tuple[dict[str, Any], dict[str, Any]]:
+        provider_options = dict(options.provider_options)
+        image_model = provider_options.pop("image_model", self.default_image_model)
+        image_tool_options = provider_options.pop("image_tool_options", {})
+        if not isinstance(image_tool_options, dict):
+            raise ProviderError("image_tool_options must be a dictionary")
+        image_tool = {"type": "image_generation", "model": image_model}
+        image_tool.update(image_tool_options)
+        return image_tool, provider_options
 
     def _client(self, options: GenerateOptions) -> AsyncOpenAI:
         return AsyncOpenAI(
@@ -203,14 +215,15 @@ class CodexProvider:
         options: GenerateOptions,
     ) -> GenerateResult[ImageGeneration]:
         client = self._client(options)
+        image_tool, provider_options = self._image_tool(options)
         stream = await client.responses.create(
             model=self._model(options),
             store=False,
             stream=True,
             instructions=self._system_prompt(options),
             input=self._input(prompt, conversation),
-            tools=[{"type": "image_generation"}],
-            **options.provider_options,
+            tools=[image_tool],
+            **provider_options,
         )
 
         image_base64: Optional[str] = None
@@ -235,7 +248,11 @@ class CodexProvider:
                 output=image,
                 raw_output=image_base64,
                 conversation=conversation.with_assistant(prompt, "[image generated]"),
-                metadata={"provider": self.name, "model": self._model(options)},
+                metadata={
+                    "provider": self.name,
+                    "model": self._model(options),
+                    "image_model": image_tool.get("model"),
+                },
             )
 
         raise EmptyOutputError("Codex returned no image output")
