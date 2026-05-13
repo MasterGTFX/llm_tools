@@ -27,7 +27,7 @@ pip install .
 From another project by Git URL:
 
 ```bash
-pip install "git+https://github.com/<owner>/<repo>.git"
+pip install "git+https://github.com/MasterGTFX/llm_tools.git"
 ```
 
 For editable local development:
@@ -86,6 +86,15 @@ result = await client.tools(
     tools=[get_stock_price],
 )
 print(result.output)
+```
+
+### Image generation
+
+```python
+result = await client.image("Draw a simple red square icon on a white background.")
+
+with open("red-square.png", "wb") as f:
+    f.write(result.output.image_bytes)
 ```
 
 ### Sync facade

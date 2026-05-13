@@ -5,8 +5,8 @@ from typing import Any, Awaitable, Callable, Optional, Sequence, Type, TypeVar
 
 from pydantic import BaseModel
 
-from .errors import SyncClientError
-from .models import Conversation, GenerateOptions, GenerateResult, Usage
+from .errors import SyncClientError, UsageExhaustedError
+from .models import Conversation, GenerateOptions, GenerateResult, ImageGeneration, Usage
 from .providers.base import Provider
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
@@ -25,7 +25,11 @@ class AsyncLLMClient:
         max_retries: Optional[int] = None,
         conversation: Optional[Conversation] = None,
         persist_history: bool = True,
+        check_usage_every: Optional[int] = None,
+        usage_account_id: Optional[str] = None,
     ) -> None:
+        if check_usage_every is not None and check_usage_every < 1:
+            raise ValueError("check_usage_every must be >= 1")
         self.provider = provider
         self.default_model = model
         self.default_system_prompt = system_prompt
@@ -33,9 +37,13 @@ class AsyncLLMClient:
         self.default_max_retries = max_retries
         self.conversation = conversation or Conversation()
         self.persist_history = persist_history
+        self.check_usage_every = check_usage_every
+        self.usage_account_id = usage_account_id
+        self._calls_since_check = check_usage_every if check_usage_every is not None else 0
 
     def reset(self, conversation: Optional[Conversation] = None) -> None:
         self.conversation = conversation or Conversation()
+        self._calls_since_check = self.check_usage_every if self.check_usage_every is not None else 0
 
     def _options(
         self,
@@ -67,6 +75,18 @@ class AsyncLLMClient:
         if conversation is None and self.persist_history:
             self.conversation = result.conversation
 
+    async def _maybe_check_usage(self) -> None:
+        if self.check_usage_every is None:
+            return
+        if self._calls_since_check >= self.check_usage_every:
+            usage = await self.provider.usage(account_id=self.usage_account_id)
+            if usage is not None and usage.is_exhausted():
+                raise UsageExhaustedError(
+                    "Provider usage limits or credits have been exhausted. "
+                    "Refill your account or wait for rate limits to reset."
+                )
+            self._calls_since_check = 0
+
     async def text(
         self,
         prompt: str,
@@ -79,6 +99,7 @@ class AsyncLLMClient:
         metadata: Optional[dict[str, Any]] = None,
         provider_options: Optional[dict[str, Any]] = None,
     ) -> GenerateResult[str]:
+        await self._maybe_check_usage()
         result = await self.provider.text(
             prompt,
             conversation=self._conversation(conversation),
@@ -91,6 +112,7 @@ class AsyncLLMClient:
                 provider_options=provider_options,
             ),
         )
+        self._calls_since_check += 1
         self._capture(result, conversation)
         return result
 
@@ -107,6 +129,7 @@ class AsyncLLMClient:
         metadata: Optional[dict[str, Any]] = None,
         provider_options: Optional[dict[str, Any]] = None,
     ) -> GenerateResult[ModelT]:
+        await self._maybe_check_usage()
         result = await self.provider.model(
             prompt,
             output_type,
@@ -120,6 +143,7 @@ class AsyncLLMClient:
                 provider_options=provider_options,
             ),
         )
+        self._calls_since_check += 1
         self._capture(result, conversation)
         return result
 
@@ -137,6 +161,7 @@ class AsyncLLMClient:
         metadata: Optional[dict[str, Any]] = None,
         provider_options: Optional[dict[str, Any]] = None,
     ) -> GenerateResult[Any]:
+        await self._maybe_check_usage()
         result = await self.provider.tools(
             prompt,
             tools=tools,
@@ -151,6 +176,36 @@ class AsyncLLMClient:
                 provider_options=provider_options,
             ),
         )
+        self._calls_since_check += 1
+        self._capture(result, conversation)
+        return result
+
+    async def image(
+        self,
+        prompt: str,
+        *,
+        conversation: Optional[Conversation] = None,
+        model: Optional[str] = None,
+        system_prompt: Optional[str] = None,
+        timeout: Optional[float] = None,
+        max_retries: Optional[int] = None,
+        metadata: Optional[dict[str, Any]] = None,
+        provider_options: Optional[dict[str, Any]] = None,
+    ) -> GenerateResult[ImageGeneration]:
+        await self._maybe_check_usage()
+        result = await self.provider.image(
+            prompt,
+            conversation=self._conversation(conversation),
+            options=self._options(
+                model=model,
+                system_prompt=system_prompt,
+                timeout=timeout,
+                max_retries=max_retries,
+                metadata=metadata,
+                provider_options=provider_options,
+            ),
+        )
+        self._calls_since_check += 1
         self._capture(result, conversation)
         return result
 
@@ -189,6 +244,9 @@ class LLMClient:
 
     def tools(self, prompt: str, **kwargs: Any) -> GenerateResult[Any]:
         return self._run(lambda: self._async_client.tools(prompt, **kwargs), "tools")
+
+    def image(self, prompt: str, **kwargs: Any) -> GenerateResult[ImageGeneration]:
+        return self._run(lambda: self._async_client.image(prompt, **kwargs), "image")
 
     def usage(self, *, account_id: Optional[str] = None) -> Optional[Usage]:
         return self._run(lambda: self._async_client.usage(account_id=account_id), "usage")

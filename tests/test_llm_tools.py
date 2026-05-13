@@ -13,10 +13,12 @@ from llm_tools import (
     Conversation,
     GenerateOptions,
     GenerateResult,
+    ImageGeneration,
     LLMClient,
     StaticTokenAuth,
     SyncClientError,
     Usage,
+    UsageExhaustedError,
 )
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
@@ -31,6 +33,8 @@ class FakeProvider:
 
     def __init__(self) -> None:
         self.calls: list[tuple[str, GenerateOptions, Conversation]] = []
+        self.usage_calls: list[Optional[str]] = []
+        self.usage_exhausted = False
 
     async def text(
         self,
@@ -82,8 +86,29 @@ class FakeProvider:
             metadata={"provider": self.name},
         )
 
+    async def image(
+        self,
+        prompt: str,
+        *,
+        conversation: Conversation,
+        options: GenerateOptions,
+    ) -> GenerateResult[ImageGeneration]:
+        self.calls.append(("image", options, conversation))
+        output = ImageGeneration(image_base64="aW1hZ2U=", image_bytes=b"image")
+        return GenerateResult(
+            output=output,
+            raw_output=output.image_base64,
+            conversation=conversation.with_assistant(prompt, "[image generated]"),
+            metadata={"provider": self.name},
+        )
+
     async def usage(self, *, account_id: Optional[str] = None) -> Optional[Usage]:
-        return Usage(total_tokens=3, raw={"account_id": account_id})
+        self.usage_calls.append(account_id)
+        return Usage(
+            total_tokens=3,
+            rate_limit_reached=self.usage_exhausted,
+            raw={"account_id": account_id},
+        )
 
 
 def test_static_token_auth_requires_non_empty_token() -> None:
@@ -174,6 +199,106 @@ def test_sync_client_facade() -> None:
 
     assert result.output == "text:hello"
     assert len(client.conversation.items) == 2
+
+
+def test_async_and_sync_clients_support_image_generation() -> None:
+    async def run() -> None:
+        provider = FakeProvider()
+        client = AsyncLLMClient(provider=provider, persist_history=False)
+
+        result = await client.image("draw a square")
+
+        assert result.output.image_bytes == b"image"
+        assert result.output.mime_type == "image/png"
+        assert provider.calls[0][0] == "image"
+
+    asyncio.run(run())
+
+    sync_result = LLMClient(provider=FakeProvider()).image("draw a square")
+
+    assert sync_result.output.image_base64 == "aW1hZ2U="
+
+
+def test_usage_is_exhausted() -> None:
+    assert Usage().is_exhausted() is False
+    assert Usage(rate_limit_reached=True).is_exhausted() is True
+    assert Usage(credits_balance=0).is_exhausted() is True
+    assert Usage(credits_balance=-1).is_exhausted() is True
+    assert Usage(credits_balance=5).is_exhausted() is False
+    assert Usage(primary_used_percent=100).is_exhausted() is True
+    assert Usage(primary_used_percent=99.9).is_exhausted() is False
+    assert Usage(secondary_used_percent=100).is_exhausted() is True
+    assert Usage(secondary_used_percent=100.1).is_exhausted() is True
+
+
+def test_async_client_checks_usage_on_first_call_and_interval() -> None:
+    async def run() -> None:
+        provider = FakeProvider()
+        client = AsyncLLMClient(provider=provider, check_usage_every=3)
+
+        await client.text("a")
+        await client.text("b")
+        await client.text("c")
+        await client.text("d")
+        await client.text("e")
+
+        # usage checked on first call (call 1) and after every 3 calls (call 4)
+        assert provider.usage_calls == [None, None]
+        assert len(provider.calls) == 5
+
+    asyncio.run(run())
+
+
+def test_async_client_checks_usage_with_account_id() -> None:
+    async def run() -> None:
+        provider = FakeProvider()
+        client = AsyncLLMClient(provider=provider, check_usage_every=1, usage_account_id="acc-42")
+
+        await client.text("a")
+
+        assert provider.usage_calls == ["acc-42"]
+
+    asyncio.run(run())
+
+
+def test_async_client_raises_when_usage_exhausted() -> None:
+    async def run() -> None:
+        provider = FakeProvider()
+        provider.usage_exhausted = True
+        client = AsyncLLMClient(provider=provider, check_usage_every=1)
+
+        with pytest.raises(UsageExhaustedError):
+            await client.text("a")
+
+        assert provider.usage_calls == [None]
+
+    asyncio.run(run())
+
+
+def test_async_client_reset_resets_usage_counter() -> None:
+    async def run() -> None:
+        provider = FakeProvider()
+        client = AsyncLLMClient(provider=provider, check_usage_every=2)
+
+        await client.text("a")
+        client.reset()
+        await client.text("b")
+
+        # reset should have set counter back to check_usage_every, so next call triggers check again
+        assert provider.usage_calls == [None, None]
+
+    asyncio.run(run())
+
+
+def test_sync_client_checks_usage() -> None:
+    provider = FakeProvider()
+    provider.usage_exhausted = True
+    client = LLMClient(provider=provider, check_usage_every=1)
+
+    with pytest.raises(UsageExhaustedError):
+        client.text("hello")
+
+    assert provider.usage_calls == [None]
 
 
 def test_sync_client_rejects_running_event_loop() -> None:

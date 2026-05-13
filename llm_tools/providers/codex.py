@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import os
 from dataclasses import dataclass, field
 from typing import Any, Optional, Sequence, Type, TypeVar
@@ -12,7 +13,7 @@ from pydantic import BaseModel
 
 from ..auth import AuthProvider, CodexLocalAuth
 from ..errors import EmptyOutputError, ProviderError
-from ..models import Conversation, GenerateOptions, GenerateResult, Usage
+from ..models import Conversation, GenerateOptions, GenerateResult, ImageGeneration, Usage
 
 load_dotenv()
 
@@ -193,6 +194,51 @@ class CodexProvider:
             conversation=conversation.with_items(prompt, new_items),
             metadata={"provider": self.name, "model": self._model(options)},
         )
+
+    async def image(
+        self,
+        prompt: str,
+        *,
+        conversation: Conversation,
+        options: GenerateOptions,
+    ) -> GenerateResult[ImageGeneration]:
+        client = self._client(options)
+        stream = await client.responses.create(
+            model=self._model(options),
+            store=False,
+            stream=True,
+            instructions=self._system_prompt(options),
+            input=self._input(prompt, conversation),
+            tools=[{"type": "image_generation"}],
+            **options.provider_options,
+        )
+
+        image_base64: Optional[str] = None
+        revised_prompt: Optional[str] = None
+        async for event in stream:
+            event_type = getattr(event, "type", None)
+            if event_type == "response.image_generation_call.partial_image" and image_base64 is None:
+                image_base64 = getattr(event, "partial_image_b64", None)
+            elif event_type == "response.output_item.done":
+                item = getattr(event, "item", None)
+                if getattr(item, "type", None) == "image_generation_call":
+                    image_base64 = getattr(item, "result", None) or image_base64
+                    revised_prompt = getattr(item, "revised_prompt", None) or revised_prompt
+
+        if image_base64:
+            image = ImageGeneration(
+                image_base64=image_base64,
+                image_bytes=base64.b64decode(image_base64),
+                revised_prompt=revised_prompt,
+            )
+            return GenerateResult(
+                output=image,
+                raw_output=image_base64,
+                conversation=conversation.with_assistant(prompt, "[image generated]"),
+                metadata={"provider": self.name, "model": self._model(options)},
+            )
+
+        raise EmptyOutputError("Codex returned no image output")
 
     async def usage(self, *, account_id: Optional[str] = None) -> Optional[Usage]:
         headers = {

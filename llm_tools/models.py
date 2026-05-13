@@ -67,6 +67,27 @@ class Usage(BaseModel):
     plan_type: Optional[str] = None
     raw: dict[str, Any] = Field(default_factory=dict)
 
+    def is_exhausted(self) -> bool:
+        """Return True if the usage response indicates limits or credits are exhausted."""
+        if self.rate_limit_reached:
+            return True
+        if self.credits_balance is not None and self.credits_balance <= 0:
+            return True
+        if self.primary_used_percent is not None and self.primary_used_percent >= 100:
+            return True
+        if self.secondary_used_percent is not None and self.secondary_used_percent >= 100:
+            return True
+        return False
+
+
+class ImageGeneration(BaseModel):
+    """Image output returned by a provider image generation call."""
+
+    image_base64: str
+    image_bytes: bytes
+    revised_prompt: Optional[str] = None
+    mime_type: str = "image/png"
+
 
 class GenerateResult(BaseModel, Generic[OutputT]):
     model_config = ConfigDict(arbitrary_types_allowed=True)

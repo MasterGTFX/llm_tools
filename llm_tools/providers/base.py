@@ -4,7 +4,7 @@ from typing import Any, Optional, Protocol, Sequence, Type, TypeVar
 
 from pydantic import BaseModel
 
-from ..models import Conversation, GenerateOptions, GenerateResult, Usage
+from ..models import Conversation, GenerateOptions, GenerateResult, ImageGeneration, Usage
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -42,6 +42,15 @@ class Provider(Protocol):
         conversation: Conversation,
         options: GenerateOptions,
     ) -> GenerateResult[Any]:
+        ...
+
+    async def image(
+        self,
+        prompt: str,
+        *,
+        conversation: Conversation,
+        options: GenerateOptions,
+    ) -> GenerateResult[ImageGeneration]:
         ...
 
     async def usage(self, *, account_id: Optional[str] = None) -> Optional[Usage]:

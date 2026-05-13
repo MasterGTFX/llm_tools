@@ -6,8 +6,9 @@ from .errors import (
     LLMToolsError,
     ProviderError,
     SyncClientError,
+    UsageExhaustedError,
 )
-from .models import Conversation, GenerateOptions, GenerateResult, Message, Usage
+from .models import Conversation, GenerateOptions, GenerateResult, ImageGeneration, Message, Usage
 from .providers import Provider
 
 __all__ = [
@@ -20,6 +21,7 @@ __all__ = [
     "EmptyOutputError",
     "GenerateOptions",
     "GenerateResult",
+    "ImageGeneration",
     "LLMClient",
     "LLMToolsError",
     "Message",
@@ -28,6 +30,7 @@ __all__ = [
     "StaticTokenAuth",
     "SyncClientError",
     "Usage",
+    "UsageExhaustedError",
 ]
 
 
