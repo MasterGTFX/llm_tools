@@ -21,7 +21,7 @@ ModelT = TypeVar("ModelT", bound=BaseModel)
 
 DEFAULT_CODEX_BASE_URL = os.getenv("OPENAI_CODEX_BASE_URL", "https://chatgpt.com/backend-api/codex")
 DEFAULT_CODEX_MODEL = os.getenv("OPENAI_CODEX_MODEL", "gpt-5.5")
-DEFAULT_CODEX_IMAGE_MODEL = os.getenv("OPENAI_CODEX_IMAGE_MODEL", "gpt-image-2")
+DEFAULT_CODEX_IMAGE_MODEL = os.getenv("OPENAI_CODEX_IMAGE_MODEL", "gpt-5.4-image-2")
 DEFAULT_CODEX_SYSTEM_PROMPT = os.getenv(
     "OPENAI_CODEX_SYSTEM_PROMPT",
     "You are a helpful coding assistant. Answer concisely.",
